@@ -8,11 +8,11 @@
 section '.text' code readable executable
 
 start:
-
+	; display the logo of the program
 	mov	[con_handle],STD_OUTPUT_HANDLE
 	mov	esi,_logo
 	call	display_string
-
+	;
 	call	get_params
 	jc	information
 
@@ -78,6 +78,9 @@ information:
 	jmp	exit_program
 
 get_params:
+	; description:
+	; parameters:
+	; return:
 	mov	[input_file],0
 	mov	[output_file],0
 	mov	[symbols_file],0
@@ -87,34 +90,45 @@ get_params:
 	mov	[definitions_pointer],predefinitions
 	mov	esi,eax
 	mov	edi,params
+	; skip spaces
     find_command_start:
 	lodsb
+	; is space
 	cmp	al,20h
 	je	find_command_start
+	; is double quote
 	cmp	al,22h
 	je	skip_quoted_name
     skip_name:
 	lodsb
+	; is space
 	cmp	al,20h
 	je	find_param
+	; is null terminator
 	or	al,al
 	jz	all_params
 	jmp	skip_name
     skip_quoted_name:
 	lodsb
+	; is double quote
 	cmp	al,22h
 	je	find_param
+	; is null terminator
 	or	al,al
 	jz	all_params
 	jmp	skip_quoted_name
+	; while is space
     find_param:
 	lodsb
 	cmp	al,20h
 	je	find_param
+	; is option argument
 	cmp	al,'-'
 	je	option_param
+	; carriage return
 	cmp	al,0Dh
 	je	all_params
+	; is null terminator
 	or	al,al
 	jz	all_params
 	cmp	[input_file],0
@@ -128,24 +142,31 @@ get_params:
     process_param:
 	cmp	al,22h
 	je	string_param
+	; loop copy arguments into memory [params]
     copy_param:
 	cmp	edi,params+1000h
 	jae	bad_params
 	stosb
 	lodsb
+	; is space
 	cmp	al,20h
 	je	param_end
+	; is carriage return
 	cmp	al,0Dh
 	je	param_end
+	; is null terminator
 	or	al,al
 	jz	param_end
 	jmp	copy_param
     string_param:
 	lodsb
+	; is double quote
 	cmp	al,22h
 	je	string_param_end
+	; is carriage return
 	cmp	al,0Dh
 	je	param_end
+	; is null terminator
 	or	al,al
 	jz	param_end
 	cmp	edi,params+1000h
@@ -154,18 +175,22 @@ get_params:
 	jmp	string_param
     option_param:
 	lodsb
+	;
 	cmp	al,'m'
 	je	memory_option
 	cmp	al,'M'
 	je	memory_option
+	;
 	cmp	al,'p'
 	je	passes_option
 	cmp	al,'P'
 	je	passes_option
+	;
 	cmp	al,'d'
 	je	definition_option
 	cmp	al,'D'
 	je	definition_option
+	;
 	cmp	al,'s'
 	je	symbols_option
 	cmp	al,'S'
@@ -174,70 +199,94 @@ get_params:
 	stc
 	ret
     get_option_value:
+	; description:
+	; parameters:
+	; return: stc on failure, clc on success
 	xor	eax,eax
 	mov	edx,eax
     get_option_digit:
 	lodsb
+	; is space
 	cmp	al,20h
 	je	option_value_ok
+	; is carriage return
 	cmp	al,0Dh
 	je	option_value_ok
+	; is null terminator
 	or	al,al
 	jz	option_value_ok
+	; is less than '0'
 	sub	al,30h
 	jc	invalid_option_value
+	; is above than '9'
 	cmp	al,9
 	ja	invalid_option_value
+	; convert string to decimal
 	imul	edx,10
 	jo	invalid_option_value
 	add	edx,eax
 	jc	invalid_option_value
 	jmp	get_option_digit
+	; return success
     option_value_ok:
 	dec	esi
 	clc
 	ret
+	; return failure
     invalid_option_value:
 	stc
 	ret
+	; while is space
     memory_option:
 	lodsb
 	cmp	al,20h
 	je	memory_option
+	; carriage return
 	cmp	al,0Dh
 	je	bad_params
+	; null terminator
 	or	al,al
 	jz	bad_params
 	dec	esi
 	call	get_option_value
+	; is 0
 	or	edx,edx
 	jz	bad_params
+	; edx >= 4MB
 	cmp	edx,1 shl (32-10)
 	jae	bad_params
 	mov	[memory_setting],edx
 	jmp	find_param
+	; while is space
     passes_option:
 	lodsb
 	cmp	al,20h
 	je	passes_option
+	; is carriage return
 	cmp	al,0Dh
 	je	bad_params
+	; is null terminator
 	or	al,al
 	jz	bad_params
 	dec	esi
 	call	get_option_value
+	; is edx 0
 	or	edx,edx
 	jz	bad_params
+	; edx > (MAX_U16 + 1)
 	cmp	edx,10000h
 	ja	bad_params
 	mov	[passes_limit],dx
 	jmp	find_param
+	; while is space
     definition_option:
 	lodsb
 	cmp	al,20h
 	je	definition_option
+	; carriage return
 	cmp	al,0Dh
 	je	bad_params
+	; is null terminator
 	or	al,al
 	jz	bad_params
 	dec	esi
@@ -250,6 +299,7 @@ get_params:
 	jmp	find_param
     symbols_option:
 	mov	[symbols_file],edi
+	; while is space and not an argument
       find_symbols_file_name:
 	lodsb
 	cmp	al,20h
@@ -264,6 +314,7 @@ get_params:
 	stosb
 	jmp	find_param
     all_params:
+	; is input_file 0
 	cmp	[input_file],0
 	je	bad_params
 	mov	eax,[definitions_pointer]
@@ -272,19 +323,26 @@ get_params:
 	clc
 	ret
     convert_definition_option:
+	; description:
+	; parameters: (edi)
+	; return: setc on failure, clc on success
 	mov	ecx,edi
 	cmp	edi,predefinitions+1000h
 	jae	bad_definition_option
 	xor	al,al
 	stosb
+	;
       copy_definition_name:
 	lodsb
 	cmp	al,'='
 	je	copy_definition_value
+	; is space
 	cmp	al,20h
 	je	bad_definition_option
+	; is carriage return
 	cmp	al,0Dh
 	je	bad_definition_option
+	;; is null terminator
 	or	al,al
 	jz	bad_definition_option
 	cmp	edi,predefinitions+1000h
@@ -297,14 +355,18 @@ get_params:
 	ret
       copy_definition_value:
 	lodsb
+	; is space
 	cmp	al,20h
 	je	definition_value_end
+	; is carriage return
 	cmp	al,0Dh
 	je	definition_value_end
+	; is null terminator
 	or	al,al
 	jz	definition_value_end
 	cmp	al,'\'
 	jne	definition_value_character
+	; is space
 	cmp	byte [esi],20h
 	jne	definition_value_character
 	lodsb

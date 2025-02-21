@@ -193,6 +193,9 @@ lseek:
 	ret
 
 display_string:
+	; description: writes to standard input/output/error device (ecx) bytes
+	; parameters: string (esi), con_handle (global)
+	; return: 0/non-zero (failure/complete assynchronously)/success
 	push	[con_handle]
 	call	[GetStdHandle]
 	mov	ebp,eax
